@@ -9,16 +9,18 @@ import json
 load_dotenv()
 def get_news(query):
     ## query= ai research papers , ml , .....
-    subscription_key = os.environ['BING_SEARCH_V7_SUBSCRIPTION_KEY']
-    search_url = "https://api.bing.microsoft.com/v7.0/search"
+    api_key = os.environ['GOOGLE_API_KEY']
+    cse_id = os.environ['GOOGLE_CSE_ID']
+    search_url = "https://www.googleapis.com/customsearch/v1"
 
-    mkt = 'en-US'
-    params = { 'q': query, 'mkt': mkt  , "responseFilter" :"Webpages"}
-    headers = { 'Ocp-Apim-Subscription-Key': subscription_key }
-
-
+    params = {
+        'q': query,
+        'key': api_key,
+        'cx': cse_id,
+        'num': 10  # Number of results, adjust as needed
+    }
     try:
-        response = requests.get(search_url, headers=headers, params=params)
+        response = requests.get(search_url, params=params)
         response.raise_for_status()
 
         print("Headers:")

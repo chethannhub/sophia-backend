@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Venvs
+env/
+.venv/
+venv/
+
+# VCS
+.git/
+.gitignore
+
+# OS/Editor
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Large/local data
+chats/
+db/
+News_api/db/
+summarized/
+text/
+static/
+*.mp3
+*.wav
+*.bin
+*.sqlite3
+
+# Not needed in image
+production.env
+example.env
+*.log
+
+# Local credentials (use K8s secrets instead)
+gen-lang-client-*.json

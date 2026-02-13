@@ -1,3 +1,14 @@
 .vscode/
 api_env/
 __pycache__/
+env/
+Sophia/gen-lang-client-*.json
+production.env
+.env
+
+gen-lang-client-*.json
+production.env
+.env
+.DS_Store
+**/ .DS_Store
+**/__pycache__

@@ -1,9 +1,14 @@
 import os
+from pathlib import Path
 import requests
-import json
 import datetime
+from dotenv import load_dotenv
+
+# Always load .env from the project root regardless of working directory
+load_dotenv(Path(__file__).parent.parent / ".env")
+_API_KEY = os.getenv("NEWS_API_KEY", "")
 yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-print("yesterday" , yesterday)
+
 def get_news(term):
     if term == "AIML":
         term = "AI"
@@ -13,7 +18,7 @@ def get_news(term):
         'searchIn=title&'
         'language=en&'
         'pageSize=20&'
-        'apiKey=7af83bf241d1457596a8e285a221b3ed')
+        f'apiKey={_API_KEY}')
     elif term == "AR-VR":
         date = (datetime.datetime.now() - datetime.timedelta(days=2)).strftime("%Y-%m-%d")
         term = "AR"
@@ -23,8 +28,8 @@ def get_news(term):
         'searchIn=title&'
         'language=en&'
         'pageSize=20&'
-        'apiKey=7af83bf241d1457596a8e285a221b3ed')
-    else :
+        f'apiKey={_API_KEY}')
+    else:
         date = (datetime.datetime.now() - datetime.timedelta(days=3)).strftime("%Y-%m-%d")
         term = "blockChain"
         url = ('https://newsapi.org/v2/everything?'
@@ -33,7 +38,7 @@ def get_news(term):
         'searchIn=title&'
         'language=en&'
         'pageSize=20&'
-        'apiKey=7af83bf241d1457596a8e285a221b3ed')
-        
+        f'apiKey={_API_KEY}')
+
     responses = requests.get(url)
-    return responses.json() 
+    return responses.json()

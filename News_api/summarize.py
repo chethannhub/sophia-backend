@@ -1,123 +1,97 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+"""
+News summariser.
+Single responsibility: produce a structured markdown summary for a set of
+article IDs, with transparent caching to avoid redundant LLM calls.
+"""
 import datetime
-import os
-from langchain.schema import Document
-from langchain_google_genai.embeddings import GoogleGenerativeAIEmbeddings
-from langchain_chroma.vectorstores import Chroma
-from langchain.prompts import   PromptTemplate
-from langchain.chains import LLMChain
-import time
-from dotenv import load_dotenv
-from . import convert_db
 import json
-## adjust the prompt in this its not good
+from pathlib import Path
 
-load_dotenv()
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+from .llm_client import get_llm
+from .config import SUMMARIZATION_DIR, TEXT_DIR
+
+_SUMMARIZATION_PROMPT = PromptTemplate(
+    input_variables=["context"],
+    template="""You are an expert news analyst. Create a comprehensive, well-structured summary.
+
+Guidelines:
+1. Begin with a concise overview of the main topic.
+2. Organise into clear sections covering all major points.
+3. Include key facts, figures, quotes, and implications.
+4. Highlight controversies and differing viewpoints.
+5. Cite each major point: [Source: <name>, Author: <author>]
+6. End with a brief conclusion of key takeaways.
+
+Context:
+{context}
+
+Summary:""",
+)
+
 class NewsSummarizer:
-    def __init__(self ):
-        os.makedirs("text/summarization" , exist_ok = True)
-        if not os.path.exists("text/summarization/history.json"):
-            with open("text/summarization/history.json" , "w") as f:
-                json.dump({"history":[]} , f)
-        # self.embedding = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        self.model = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
+    """Summarise selected news articles using AWS Bedrock (Claude)."""
 
-    def summarize(self, urls ,query_news , query_edge):
-        print("started")
+    def __init__(self) -> None:
+        SUMMARIZATION_DIR.mkdir(parents=True, exist_ok=True)
+        history_path = SUMMARIZATION_DIR / "history.json"
+        if not history_path.exists():
+            history_path.write_text(json.dumps({"history": []}))
+        self._chain = _SUMMARIZATION_PROMPT | get_llm(temperature=0.4) | StrOutputParser()
+
+    # ── private helpers ──────────────────────────────────────────────────────
+
+    def _get_cached_summary(self, urls: list) -> str | None:
+        history = json.loads((SUMMARIZATION_DIR / "history.json").read_text())
+        for entry in history["history"]:
+            if entry["urls"] == urls:
+                return Path(entry["path"]).read_text()
+        return None
+
+    def _save_summary(self, summary: str, urls: list) -> None:
+        path = SUMMARIZATION_DIR / f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')}.txt"
+        path.write_text(summary)
+        history_path = SUMMARIZATION_DIR / "history.json"
+        history = json.loads(history_path.read_text())
+        history["history"].append({"path": str(path), "urls": urls})
+        history_path.write_text(json.dumps(history, indent=2))
+
+    def _build_context(self, urls: list, query_news: str, query_edge: str) -> str:
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        file_path = TEXT_DIR / f"{today}_{query_news}_{query_edge}.json"
+        if not file_path.exists():
+            # Fall back to the most recently modified matching file
+            candidates = sorted(TEXT_DIR.glob(f"*_{query_news}_{query_edge}.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if not candidates:
+                raise FileNotFoundError(f"No news data found for query '{query_news}'/'{query_edge}'. Fetch news first.")
+            file_path = candidates[0]
+        with open(file_path) as f:
+            data = json.load(f)
+        parts = []
+        for article in data.get("Articles", []):
+            if article["id"] in urls:
+                parts.append(
+                    f"Title: {article['title']}\n\n"
+                    f"Content: {article['content']}\n\n"
+                    f"[Source: {article['title']}, Author: {article.get('author', 'Unknown')}]"
+                )
+        return "\n\n---\n\n".join(parts)
+
+    # ── public API ───────────────────────────────────────────────────────────
+
+    def summarize(self, urls: list, query_news: str, query_edge: str) -> str:
+        """Return a cached or freshly generated summary for the given article IDs."""
         urls = sorted(urls)
-        with open("text/summarization/history.json" , "r") as f:
-            history_summarization = json.load(f)
-        
-        for i in history_summarization["history"]:
-            if i["urls"] == urls:
-                print("returning from history")
-                path = i["path"]
-                with open(path , "r") as f:
-                    return f.read()
-        # with open("db/history.json" , "r") as f:
-        #     history = json.load(f)
-        # found = False
-        # for i in history["history"]:
-        #     if i["urls"] == urls:
-        #         urls = i["urls"]
-        #         persistent_dir = i["storage"]   
-        #         found = True
-        #         break
-        # if not found:
-        #     persistent_dir = convert_db.convert_db(urls)
-        
-        # self.vdb = Chroma(persist_directory=persistent_dir, embedding_function=self.embedding)
-        # Retrieve all documents from the vector database
-        # Use MMR retriever to get diverse samples
-        # retriever = self.vdb.as_retriever(search_type="mmr", search_kwargs={"k": 15 , "fetch_k":30 ,  "lambda_mult":0.24})
-        # retriever_docs = retriever.get_relevant_documents("")
-        retriever_docs = '\n \n'
-        file_path_news = f"text/{datetime.datetime.now().strftime('%Y-%m-%d')}_{query_news}_{query_edge}.json"
-        with open(file_path_news) as file:
-            data = json.load(file)
-            for article in data["Articles"]:
-                if article["id"] in urls:
-                    retriever_docs += f"Title: {article['title']}\n\nContent: {article['content']}\n\n [Source: {article['title']}, Author: {article['author']}]"
+        cached = self._get_cached_summary(urls)
+        if cached:
+            return cached
+        context = self._build_context(urls, query_news, query_edge)
 
-        summarization_prompt = PromptTemplate(
-            input_variables=["context"],
-            template=
-            """
-                You are an expert news analyst and summarizer. Your task is to create a comprehensive, well-structured summary based on the provided context. Follow these guidelines:
-
-                1. Relevance Check:
-                   - If the context contains relevant information, proceed with the summary.
-
-                2. Summary Structure:
-                   - Begin with a concise overview of the main topic or event.
-                   - Organize the summary into clear sections, covering all major points from the context.
-                   - Use bullet points or numbered lists for clarity when appropriate.
-
-                3. Content Requirements:
-                   - Provide a detailed, long-form summary that captures the essence of the information.
-                   - Cover ALL topics mentioned in the context, prioritizing their importance and relevance.
-                   - Include key facts, figures, quotes, and any significant developments or implications.
-                   - Highlight any controversies, differing viewpoints, or areas of uncertainty.
-
-                4. Context Enhancement:
-                   - Supplement the summary with your expert knowledge to provide additional context or background information.
-                   - Explain complex terms or concepts that may not be familiar to a general audience.
-
-                5. Source Attribution:
-                   - For each major point or piece of information, cite the source using the following format:
-                     [Source: <source name>, Author: <author if available>]
-                   - If an image is mentioned, include its description and source: [Image: <brief description>, Source: <source name>]
-
-                6. Conclusion:
-                   - End with a brief conclusion that summarizes the key takeaways or implications of the information.
-
-                7. Metadata:
-                   - After the summary, list all unique metadata entries found in the context, formatted as:
-                     [Source: <source>, Image: <image URL>, Date: <date>, Heading: <heading>, Author: <author>]
-                   - Include only available fields for each entry.
-
-                Context:
-                {context}
-
-                Summary:
-                """
-        )
-        summarize_chain = LLMChain(
-            llm=self.model,
-            prompt=summarization_prompt,
-            verbose=True
-        )
-        os.makedirs("text/summarization" , exist_ok = True)
-        path = f"text/summarization/{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')}.txt"
-        print(retriever_docs)
-        summary = summarize_chain.run( context=retriever_docs)
-        os.makedirs("text/summarization" , exist_ok=True)
-        history_json = "text/summarization/history.json"
-        with open(history_json , "r") as f:
-            history = json.load(f)
-        history["history"].append({"path":path , "urls":urls})
-        with open(history_json , "w") as f:
-            json.dump(history , f)
+        summary = self._chain.invoke({"context": context})
+        self._save_summary(summary, urls)
+        return summary
         with open(path, "w") as f:
             f.writelines(summary)
 

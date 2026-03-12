@@ -1,11 +1,7 @@
 from bs4 import BeautifulSoup
 import json
 import requests
-from langchain_google_genai.embeddings import GoogleGenerativeAIEmbeddings
-from dotenv import load_dotenv
 
-load_dotenv()
-embedding = GoogleGenerativeAIEmbeddings(model = "gemini-1.5-pro")
 
 def get_info(url):
     response = requests.get(url)

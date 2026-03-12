@@ -1,103 +1,126 @@
-import os
+"""
+Audio generation pipeline.
+Single responsibility: orchestrate conversation generation + Piper TTS
+to produce a merged MP3 podcast file from selected article IDs.
+"""
 import datetime
-from pydub import AudioSegment
-from google.cloud import texttospeech
-from dotenv import load_dotenv
 import json
-from . import create_con_text
+import os
 import uuid
+from pathlib import Path
 
-load_dotenv()
+from pydub import AudioSegment
 
-class TextToSpeech:
-    def __init__(self):
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        self.client = texttospeech.TextToSpeechClient()
-
-    def synthesize_speech(self, voice_name, text, output_file):
-        synthesis_input = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="en-US",
-            name=voice_name,
-        )
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
-        )
-        response = self.client.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
-        )
-        with open(output_file, "wb") as out:
-            out.write(response.audio_content)
-            print(f"Speech synthesis succeeded for {output_file}")
-            return output_file
-        print(f"Speech synthesis failed for {output_file}")
-        return None
-
-    def process_conversation(self, input_file, output_folder):
-        os.makedirs(output_folder, exist_ok=True)
-        unique_id = str(uuid.uuid4())
-        output_dir = os.path.join(output_folder, unique_id)
-        os.makedirs(output_dir, exist_ok=True)
-
-        with open(input_file, 'r') as f:
-            conversation_data = json.load(f)
-        i = 1
-        audio_files = []
-        for i, turn in enumerate(conversation_data['conversation']):
-            voices = {
-                'Andrew Krepthy': "en-US-Chirp-HD-D",
-                'Smithi': "en-US-Chirp-HD-F"
-                
-            }
-            speaker = turn['speaker']
-            if i % 2 == 0:
-                voice_name = voices.get(speaker, "en-US-Chirp-HD-D")  # Default to male voice if unknown
-            else:
-                voice_name = voices.get(speaker, "en-US-Chirp-HD-F")  # Default to male voice if unknown
-            i +=1
-            speaker_slug = speaker.lower().replace(" ", "_")
-            output_file = os.path.join(output_dir, f'{speaker_slug}_part_{i}.mp3')
-            
-            result = self.synthesize_speech(voice_name, turn['text'], output_file)
-            
-            if result:
-                audio_files.append(result)
+from .tts_engine import get_tts_engine
+from .config import AUDIO_DIR, AUDIO_TEXT_DIR, PODCAST_SPEAKERS
+from . import create_con_text
 
 
-        merged_audio = self.merge_audio_files_pydub(audio_files, output_dir)
-        self.cleanup_files(audio_files + [os.path.join(output_dir, 'input.txt')])
-        
-        return merged_audio
+# ── internal helpers ──────────────────────────────────────────────────────
 
-    def merge_audio_files_pydub(self , audio_files, output_dir):
-        # Create an empty AudioSegment
-        combined = AudioSegment.empty()
-        sorted_files = sorted(audio_files , key = lambda x : int(x.split("_")[-1].split(".")[0]))
-        # Iterate over each audio file and append to the combined segment
-        for file_path in sorted_files:
-            audio = AudioSegment.from_file(file_path)
-            combined += audio
-        os.makedirs(output_dir, exist_ok=True)
-        # Define output file path
-        output_file_path = os.path.join(output_dir, 'output.mp3')
+def _wav_to_mp3(wav_path: str, mp3_path: str) -> str:
+    """Convert a WAV file to MP3 (removes the original WAV)."""
+    AudioSegment.from_wav(wav_path).export(mp3_path, format="mp3")
+    os.remove(wav_path)
+    if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
+        raise RuntimeError(f"MP3 conversion produced empty file: {mp3_path}")
+    return mp3_path
 
-        # Export the combined audio
-        combined.export(output_file_path, format='mp3')
 
-        print(f"Audio files have been merged into '{output_file_path}'")
-        return output_file_path
+def _merge_audio_files(mp3_files: list, output_dir: str) -> str:
+    """Concatenate sorted MP3 segments into a single output.mp3."""
+    combined = AudioSegment.empty()
+    for path in sorted(mp3_files):
+        combined += AudioSegment.from_file(path)
+    output_path = os.path.join(output_dir, "output.mp3")
+    combined.export(output_path, format="mp3")
+    return output_path
 
-    def cleanup_files(self, files_to_remove):
-        for file in files_to_remove:
-            if os.path.exists(file):
-                os.remove(file)
 
-def text_to_speech(urls, output_folder= "summarized/audio"):
-    os.makedirs("summarized/audio" , exist_ok=True)
-    os.makedirs("summarized/text" , exist_ok=True)
-    if not os.path.exists(output_folder + "/history.json"):
-        with open(output_folder + "/history.json", "w") as file:
-            json.dump({"history": []}, file)
+def _cleanup(files: list) -> None:
+    for f in files:
+        if os.path.exists(f):
+            os.remove(f)
+
+
+# ── public API ──────────────────────────────────────────────────────────────
+
+def generate_audio(article_ids: list, output_folder: str = None) -> str:
+    """Generate a podcast-style MP3 for the given article IDs.
+
+    Pipeline:
+      1. generate_conversation()  — Claude creates a dialogue JSON
+      2. Piper TTS               — each turn → WAV → MP3
+      3. pydub merge             — all segments → output.mp3
+      4. Cache result            — skip re-generation on repeat calls
+
+    Args:
+        article_ids:    List of article IDs to include.
+        output_folder:  Destination directory. Defaults to AUDIO_DIR.
+
+    Returns:
+        Absolute path to the merged output.mp3.
+    """
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    AUDIO_TEXT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if output_folder is None:
+        output_folder = str(AUDIO_DIR)
+
+    history_path = Path(output_folder) / "history.json"
+    if not history_path.exists():
+        history_path.write_text(json.dumps({"history": []}))
+
+    history = json.loads(history_path.read_text())
+    for entry in history["history"]:
+        cached_path = entry["path"]
+        if entry["urls"] == article_ids and os.path.exists(cached_path) and os.path.getsize(cached_path) > 0:
+            return cached_path
+
+    # Step 1: Generate conversation JSON via LLM
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
+    conversation_file = str(AUDIO_TEXT_DIR / f"{timestamp}.json")
+    create_con_text.generate_conversation(article_ids, conversation_file)
+
+    # Step 2: Synthesise each dialogue turn
+    with open(conversation_file) as f:
+        conversation_data = json.load(f)
+
+    unique_id = str(uuid.uuid4())
+    output_dir = os.path.join(output_folder, unique_id)
+    os.makedirs(output_dir, exist_ok=True)
+
+    speaker_engines = {
+        s["name"]: get_tts_engine(s["voice_lang"]) for s in PODCAST_SPEAKERS
+    }
+    default_engine = get_tts_engine("en")
+
+    audio_files = []
+    for i, turn in enumerate(conversation_data["conversation"]):
+        speaker = turn["speaker"]
+        text = turn["text"]
+        engine = speaker_engines.get(speaker, default_engine)
+
+        wav_path = os.path.join(output_dir, f"turn_{i:04d}.wav")
+        mp3_path = os.path.join(output_dir, f"turn_{i:04d}.mp3")
+        engine.synthesize_to_wav(text, wav_path)
+        if not os.path.exists(wav_path) or os.path.getsize(wav_path) <= 44:
+            print(f"Warning: TTS produced empty/corrupt WAV for turn {i}, skipping.")
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
+            continue
+        _wav_to_mp3(wav_path, mp3_path)
+        audio_files.append(mp3_path)
+
+    # Step 3: Merge all segments
+    merged = _merge_audio_files(audio_files, output_dir)
+    _cleanup(audio_files)
+
+    # Step 4: Cache the result
+    history["history"].append({"urls": article_ids, "path": merged})
+    history_path.write_text(json.dumps(history, indent=2))
+
+    return merged
     with open(output_folder + "/history.json", "r") as file:
         history = json.load(file)
     for i in history["history"]:

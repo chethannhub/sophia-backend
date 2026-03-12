@@ -1,12 +1,27 @@
 Flask
 flask-cors
 gunicorn
+
+# LangChain core + AWS Bedrock (Claude 3.5 Sonnet)
 langchain
-langchain-google-genai
-langchain-chroma
 langchain-core
-google-cloud-texttospeech
+langchain-aws
+langchain-chroma
+
+# Local embeddings (fully offline, no API key needed)
+langchain-huggingface
+sentence-transformers
+
+# AWS SDK — credentials from ~/.aws/credentials
+boto3
+
+# Piper TTS (local, cross-platform)
+piper-tts
+
+# Audio processing
 pydub
+
+# Utilities
 python-dotenv
 requests
 beautifulsoup4

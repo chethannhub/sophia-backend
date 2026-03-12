@@ -1,57 +1,71 @@
-import os
-import json
-from langchain_core.documents import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from bs4 import BeautifulSoup
-import requests
+"""
+Vector-store builder.
+Single responsibility: chunk articles and persist them in ChromaDB
+using local sentence-transformer embeddings.
+"""
 import datetime
-from langchain_chroma.vectorstores import Chroma
-from langchain_google_genai.embeddings import GoogleGenerativeAIEmbeddings
-from dotenv import load_dotenv
-load_dotenv()
-embedding = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
-splitter = RecursiveCharacterTextSplitter(chunk_overlap=100, chunk_size=1000)
-
 import glob
-def get_most_recent_file(base_path):
-    files = [f for f in glob.glob(os.path.join(base_path, '*')) if os.path.isfile(f)]
+import json
+import os
+from pathlib import Path
+
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_chroma.vectorstores import Chroma
+
+from .embeddings_client import get_embeddings
+from .config import TEXT_DIR, DB_DIR
+
+_splitter = RecursiveCharacterTextSplitter(chunk_overlap=100, chunk_size=1000)
+
+
+def _get_most_recent_news_file() -> str:
+    """Return the path to the most recently modified news JSON in TEXT_DIR."""
+    files = [f for f in glob.glob(str(TEXT_DIR / "*")) if os.path.isfile(f)]
     if not files:
-        print(f"No files found in {base_path}")
-        return None
-    most_recent_file = max(files, key=os.path.getmtime)
-    print(f"Most recent file: {most_recent_file}")
-    return most_recent_file
+        raise FileNotFoundError(f"No news files found in {TEXT_DIR}")
+    return max(files, key=os.path.getmtime)
 
 
-def convert_db(urls ,persist_directory =None):
-    print("urls=  == = =",urls)
-    texts = []
-    with open(get_most_recent_file("text")) as f:
-        history = json.load(f)
-    for article in history["Articles"]:
-        if article["id"] in urls:
-            print(article["id"])
-            texts.append(Document(page_content=article['brief'] + article["content"] , metadata={"source": article["urls"] , "heading": article["title"] }))
-    
-    # for url in urls:
-    #     print("done")
-    #     response = requests.get(url)
-    #     soup = BeautifulSoup(response.content , 'html.parser')
-    #     haeding = soup.find("h1").get_text()
-    #     image = soup.find("img").get("src")
-    #     author = soup.find("a" , class_ = "author")
-    #     if not author:
-    #         author = "Unknown"
-    #     else:
-    #         author = author.get_text()
-    #     main_content = soup.find('main') or soup.find('article') or soup.find('div' , class_ = "content")
-    #     chunks = splitter.split_text(main_content.get_text(strip=True))
-    #     for chunk in chunks:
-    #         chunk = Document(page_content=chunk, metadata={"source": url, "heading": haeding , "image": image , "author": author})
-    #         texts.append(chunk)
-    os.makedirs("db", exist_ok=True)
+def _load_articles_as_documents(article_ids: list, news_file: str) -> list:
+    """Load articles matching article_ids from news_file as LangChain Documents."""
+    with open(news_file) as f:
+        data = json.load(f)
+    docs = []
+    for article in data.get("Articles", []):
+        if article["id"] in article_ids:
+            content = (article.get("brief", "") + " " + article.get("content", "")).strip()
+            docs.append(
+                Document(
+                    page_content=content,
+                    metadata={
+                        "source": article.get("urls", ""),
+                        "heading": article.get("title", ""),
+                    },
+                )
+            )
+    return docs
+
+
+def convert_db(article_ids: list, persist_directory: str = None) -> str:
+    """Embed articles and persist them in a ChromaDB vector store.
+
+    Args:
+        article_ids:        List of article IDs to embed.
+        persist_directory:  Optional path. Auto-generated from timestamp if omitted.
+
+    Returns:
+        Path to the persisted ChromaDB directory.
+    """
+    news_file = _get_most_recent_news_file()
+    docs = _load_articles_as_documents(article_ids, news_file)
+    if not docs:
+        raise ValueError(f"No articles found for IDs: {article_ids}")
+
+    chunks = _splitter.split_documents(docs)
+    DB_DIR.mkdir(parents=True, exist_ok=True)
     if not persist_directory:
-        persist_directory = f"db/{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')}"
-    print(texts , persist_directory)
-    vector_db = Chroma.from_documents(texts, embedding, persist_directory=persist_directory)
+        persist_directory = str(DB_DIR / datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
+
+    Chroma.from_documents(chunks, get_embeddings(), persist_directory=persist_directory)
     return persist_directory

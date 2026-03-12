@@ -1,23 +1,26 @@
-from flask import Flask, request, jsonify ,send_file
-from flask_cors import CORS
-from News_api.get_preview import get_info
-from News_api.fetch_news import get_unified_news
-app = Flask(__name__)
 import datetime
 import json
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from this file's directory regardless of where the process was launched
+load_dotenv(Path(__file__).parent / ".env")
+
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+
+from News_api.get_preview import get_info
+from News_api.fetch_news import get_unified_news
 from News_api.summarize import NewsSummarizer
 from News_api.chat_with_ai import Chat
-from News_api.txt_2_speech import text_to_speech
+from News_api.txt_2_speech import generate_audio
+
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 summarizer = NewsSummarizer()
-app = Flask(__name__)
-
 chats_count = 0
-global_chat = Chat()
-
-CORS(app, resources={r"/*": {"origins": "*"}})
-print("hell i am executed")
 @app.route("/get_preview", methods=["GET"])
 def get_preview():
 
@@ -109,15 +112,15 @@ def continue_chat():
         print("text:", text)
 
         # Retrieve chat instance
-        chat_instance = Chat.get_chat_instance(chat_id)
+        chat_instance = Chat.get_or_create(str(chat_id))
         print("chat_instance:", chat_instance)
 
         # Generate AI response
-        response = chat_instance.chat_with_ai(text)
+        response = chat_instance.chat(text)
         print("AI response:", response)
 
         # Save chat history
-        chat_instance.save_chat_instance(chat_id)
+        chat_instance.save(str(chat_id))
         print("Chat instance saved")
 
         final_response = {"response": response}
@@ -153,27 +156,31 @@ def chat():
     chat_id = chats_count
     chats_count += 1
 
-    # Create chat instance
+    # Create (or retrieve) chat instance
     try:
-        chat_instance = global_chat.get_chat_instance(chat_id=chat_id, urls=urls)
+        Chat.get_or_create(str(chat_id), urls=urls)
     except Exception as e:
         return jsonify({"error": f"Failed to create chat instance: {e}"}), 500
-    print(chat_instance)
-    return jsonify({"response": "Success", "chat_id": chat_instance})
+    return jsonify({"response": "Success", "chat_id": chat_id})
 @app.route("/get_audio" , methods = ["GET" ,"POST"])
 def conversation_gen():
     print("audio generator")
     if request.method == "POST":
         id = request.json.get("urls")
+        if isinstance(id, str):
+            id = [int(x.strip()) for x in id.split(",") if x.strip()]
     else:
-        id = request.args.get("urls")
+        raw = request.args.get("urls")
+        if not raw:
+            return jsonify({"error": "Text parameter is missing"}), 400
+        id = [int(x.strip()) for x in raw.split(",") if x.strip()]
     print("ids =" ,id)
     if not id:
         return jsonify({"error": "Text parameter is missing"}), 400
     output_folder = "summarized/audio"
     id = sorted(id)
-    path = text_to_speech(id, output_folder)
-    print("done generated audio at =" , path)
+    path = generate_audio(id, output_folder)
+    print("done generated audio at =", path)
     return send_file(path, mimetype='audio/mpeg')
 if __name__ == "__main__":
-    app.run( host='0.0.0.0', port=5000 , debug=True)
+    app.run( host='0.0.0.0', port=5001, debug=True, use_reloader=False)

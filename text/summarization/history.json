@@ -1,1 +1,31 @@
-{"history": [{"path": "text/summarization/2024-10-04-06-46.txt", "urls": [0, 1]}, {"path": "text/summarization/2025-08-28-17-25.txt", "urls": [0, 1, 10]}]}
+{
+  "history": [
+    {
+      "path": "text/summarization/2024-10-04-06-46.txt",
+      "urls": [
+        0,
+        1
+      ]
+    },
+    {
+      "path": "text/summarization/2025-08-28-17-25.txt",
+      "urls": [
+        0,
+        1,
+        10
+      ]
+    },
+    {
+      "path": "/Users/raja/Desktop/sophia/news-teller-b/text/summarization/2026-03-11-21-24.txt",
+      "urls": [
+        1
+      ]
+    },
+    {
+      "path": "/Users/raja/Desktop/sophia/news-teller-b/text/summarization/2026-03-11-21-47.txt",
+      "urls": [
+        0
+      ]
+    }
+  ]
+}

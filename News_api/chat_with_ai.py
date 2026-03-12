@@ -1,127 +1,128 @@
-import os
-from langchain_google_genai import  ChatGoogleGenerativeAI
-from . import convert_db
+"""
+RAG-based chat module.
+Single responsibility: manage per-session chat with retrieved context from
+ChromaDB, backed by AWS Bedrock (Claude) and local HuggingFace embeddings.
+
+Public API (matches app.py expectations):
+  Chat.get_or_create(chat_id, urls=None) -> Chat instance
+  instance.chat(text) -> str
+  instance.save(chat_id) -> None
+"""
 import json
-import datetime
-from langchain_chroma.vectorstores import Chroma
-from dotenv import load_dotenv
+import os
+from pathlib import Path
 
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-
+from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai.embeddings import GoogleGenerativeAIEmbeddings
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
+from . import convert_db
+from .llm_client import get_llm
+from .embeddings_client import get_embeddings
+
+_CHATS_DIR = Path("chats")
+_HISTORY_FILE = _CHATS_DIR / "history.json"
+
+_SYSTEM_PROMPT = (
+    "You are a knowledgeable and friendly assistant. "
+    "Use the retrieved context below to give a detailed, accurate response (10–13 lines). "
+    "If the context does not fully address the question, supplement with your own accurate knowledge. "
+    "Do not fabricate facts.\n\n"
+    "Context:\n{context}"
+)
+
+_CHAT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", _SYSTEM_PROMPT),
+    ("human", "{input}"),
+])
 
 
-# def chat_with_ai():
-#     conversation_history = []
-    
-#     while True:
-#         user_input = input("You: ")
-#         if user_input.lower() == 'quit':
-#             break
-        
-#         conversation_history.append(f"Human: {user_input}")
-        
-#         question_answer_chain = create_stuff_documents_chain(llm, prompt)
-#         rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-#         response = rag_chain.invoke({"input": user_input})
-        
-#         ai_response = response["answer"]
-#         print(f"AI: {ai_response}")
-        
-#         conversation_history.append(f"AI: {ai_response}")
-#     return conversation_history
+def _format_docs(docs) -> str:
+    return "\n\n".join(doc.page_content for doc in docs)
+
+_SESSIONS: dict[str, "Chat"] = {}
+_URL_TO_SESSION: dict[str, str] = {}
 
 
 class Chat:
-    instances = {}
-    instances_urls = {}
-    def __init__(self, urls = None):
-        if urls is not None:
-            load_dotenv()
-            self.conversation_history = []
-            os.makedirs("chats", exist_ok=True)
-            if not os.path.exists("chats/history.json"):
-                with open("chats/history.json", "w") as f:
-                    json.dump({"history": []}, f)
-            with open("chats/history.json", "r") as f:
-                history = json.load(f)
-            found = False
-            for i in history["history"]:
-                if i["urls"] == urls:
-                    persistent_dir = i["storage"]
-                    found = True
-                    break
-            if not found:
-                persistent_dir = convert_db.convert_db(urls)
-            
-            self.embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-            self.vdb = Chroma(persist_directory=persistent_dir, embedding_function=self.embeddings)
-            self.retriever = self.vdb.as_retriever(search_type="similarity", search_kwargs={"k": 4})
-            self.llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
+    """One chat session backed by a ChromaDB retriever and Claude via Bedrock."""
 
-            system_prompt = (
-                "You are an friendly assistant for friendly chat tasks. "
-                "Use the following pieces of retrieved context to answer"
-                "gave me the detailed discription of the context withing 10 -13 lines"
-                "you have given a question undersatnd the context and answer the question briefly."
-                "remember that you can use your own knowledge to be creative "
-                "if the context recived wont match then use your own knowledge to answer it but make it truthfull"
-                "\n\n"
-            )
+    def __init__(self, persistent_dir: str) -> None:
+        embeddings = get_embeddings()
+        self._vdb = Chroma(
+            persist_directory=persistent_dir,
+            embedding_function=embeddings,
+        )
+        retriever = self._vdb.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 4},
+        )
+        llm = get_llm(temperature=0.5)
+        # LCEL RAG pipeline: retrieve → format → prompt → LLM → parse
+        self._rag_chain = (
+            {"context": retriever | _format_docs, "input": RunnablePassthrough()}
+            | _CHAT_PROMPT
+            | llm
+            | StrOutputParser()
+        )
+        self.conversation_history: list[str] = []
 
-            self.prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", system_prompt),
-                    ("human", "{input} , context {context}"),
-                ]
-            )
-
-            self.question_answer_chain = create_stuff_documents_chain(self.llm, self.prompt)
-            self.rag_chain = create_retrieval_chain(self.retriever, self.question_answer_chain)
+    # ── factory ─────────────────────────────────────────────────────────────
 
     @classmethod
-    def get_chat_instance(self, chat_id , urls=None):
-        print("urls" , urls)
-        print("chat_id" , chat_id)
-        print("instances = ",self.instances)
-        if chat_id in self.instances:
-            return self.instances[chat_id]
-        if urls is None:
-            raise ValueError("URLs must be provided for new chat instances")
-        urls_s = ','.join(str(url) for url in urls)
-        if urls_s in self.instances_urls:
-            return  self.instances_urls[urls_s]
-        instance = Chat(urls=urls)
-        print(instance.conversation_history)
-        self.instances[chat_id] = instance
-        self.instances_urls[urls_s] = chat_id
-        return  chat_id
+    def get_or_create(cls, chat_id: str, urls: list | None = None) -> "Chat":
+        """Return an existing session or create a new one."""
+        if chat_id in _SESSIONS:
+            return _SESSIONS[chat_id]
 
-    def save_chat_instance(self, chat_id):
-        if not os.path.exists("chats"):
-            os.makedirs("chats")
-        with open(f"chats/{chat_id}.json", "w") as f:
-            json.dump(self.conversation_history, f)
+        _CHATS_DIR.mkdir(parents=True, exist_ok=True)
+        if not _HISTORY_FILE.exists():
+            _HISTORY_FILE.write_text(json.dumps({"history": []}))
+        history = json.loads(_HISTORY_FILE.read_text())
 
-    def chat_with_ai(self, user_input):
-        if user_input.lower() == 'quit':
-            return self.conversation_history
-        retrieved_docs = self.retriever.get_relevant_documents(user_input)
-        print()
-        self.conversation_history.append(f"Human: {user_input}, Retrieved Docs: {retrieved_docs}")
-        print("self.conversation_history = ",self.conversation_history)
-        response = self.rag_chain.invoke({"input": user_input})
+        persistent_dir: str | None = None
 
-        ai_response = response["answer"]
-        print(f"AI: {ai_response}")
+        for entry in history["history"]:
+            if str(entry.get("chat_id")) == str(chat_id):
+                persistent_dir = entry["storage"]
+                break
 
-        self.conversation_history.append(f"AI: {ai_response}")
-        return ai_response
+        if persistent_dir is None and urls is not None:
+            url_key = ",".join(str(u) for u in sorted(urls))
+            for entry in history["history"]:
+                if entry.get("url_key") == url_key:
+                    persistent_dir = entry["storage"]
+                    break
 
-# Start the conversation just gave the messae you want and it returns the thing
-# Print the entire conversation history
-## usage chat = Chat()
-### chat.chat_with_ai("hello ther")
-#### chat.conversation)history --> to get all the history
+        if persistent_dir is None:
+            if urls is None:
+                raise ValueError(f"No saved session for chat_id={chat_id!r} and no URLs provided")
+            persistent_dir = convert_db.convert_db(urls)
+            url_key = ",".join(str(u) for u in sorted(urls))
+            history["history"].append({
+                "chat_id": chat_id,
+                "url_key": url_key,
+                "storage": persistent_dir,
+            })
+            _HISTORY_FILE.write_text(json.dumps(history, indent=2))
+            _URL_TO_SESSION[url_key] = chat_id
+
+        instance = cls(persistent_dir)
+        _SESSIONS[chat_id] = instance
+        return instance
+
+    # ── public API ───────────────────────────────────────────────────────────
+
+    def chat(self, user_input: str) -> str:
+        """Run one RAG-powered turn and return the assistant's reply."""
+        self.conversation_history.append(f"Human: {user_input}")
+        answer: str = self._rag_chain.invoke(user_input)
+        self.conversation_history.append(f"AI: {answer}")
+        return answer
+
+    def save(self, chat_id: str) -> None:
+        """Persist conversation history to disk."""
+        _CHATS_DIR.mkdir(parents=True, exist_ok=True)
+        path = _CHATS_DIR / f"{chat_id}.json"
+        path.write_text(json.dumps(self.conversation_history, indent=2))

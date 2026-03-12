@@ -1,56 +1,16 @@
 {
-    "history": [
-        {
-            "urls": [
-                0,
-                1,
-                8
-            ],
-            "path": "summarized/audio/e9a3b13b-da3b-4b28-bf0a-e03f07dc1727/output.mp3"
-        },
-        {
-            "urls": [
-                ",",
-                ",",
-                "0",
-                "0",
-                "1",
-                "1"
-            ],
-            "path": "summarized/audio/3273e077-0b84-4803-be9a-0bdbe729cf4b/output.mp3"
-        },
-        {
-            "urls": [
-                ",",
-                "0",
-                "1"
-            ],
-            "path": "summarized/audio/a5405e5c-2da5-4f22-8e46-ad13b351c429/output.mp3"
-        },
-        {
-            "urls": [
-                "1"
-            ],
-            "path": "summarized/audio/89f6d88b-d3c4-4dc0-ba42-9a7eab1eaaab/output.mp3"
-        },
-        {
-            "urls": [
-                ",",
-                "1",
-                "9"
-            ],
-            "path": "summarized/audio/62121ef5-e5b9-4b0e-bfb0-e533ed505421/output.mp3"
-        },
-        {
-            "urls": [
-                ",",
-                ",",
-                "0",
-                "1",
-                "1",
-                "9"
-            ],
-            "path": "summarized/audio/7a1620eb-ccc2-4562-b841-0ee47c071e46/output.mp3"
-        }
-    ]
+  "history": [
+    {
+      "urls": [
+        1
+      ],
+      "path": "summarized/audio/574d2760-f49e-4f2d-bee3-904e320c6895/output.mp3"
+    },
+    {
+      "urls": [
+        0
+      ],
+      "path": "summarized/audio/38783bed-42d1-41e8-8037-da7b90271c6e/output.mp3"
+    }
+  ]
 }

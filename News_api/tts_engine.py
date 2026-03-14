@@ -15,6 +15,7 @@ Voices loaded from config (config.py:30):
 import os
 import platform
 import subprocess
+import sys
 import wave
 from pathlib import Path
 
@@ -60,15 +61,17 @@ class PiperTTSEngine:
             self._voice.synthesize_wav(text, wav_file)
 
     def _synthesize_subprocess(self, text: str, output_wav: str) -> None:
+        command = [sys.executable, "-m", "piper"]
         result = subprocess.run(
-            ["piper", "--model", self.voice_path, "--output_file", output_wav],
-            input=text.encode(),
+            [*command, "--model", self.voice_path, "--output_file", output_wav],
+            input=text,
             capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             raise RuntimeError(
                 f"Piper subprocess error (exit {result.returncode}): "
-                f"{result.stderr.decode()}"
+                f"{result.stderr}"
             )
 
     # ── public ───────────────────────────────────────────────────────────────

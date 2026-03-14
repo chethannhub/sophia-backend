@@ -12,6 +12,10 @@ langchain-chroma
 langchain-huggingface
 sentence-transformers
 
+google.genai
+langchain_text_splitters
+pathvalidate
+
 # AWS SDK — credentials from ~/.aws/credentials
 boto3
 

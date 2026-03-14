@@ -54,9 +54,27 @@ def get_daily_news():
     if os.path.exists(file_path):
         with open(file_path , "r") as f:
             print("file exists")
-            return jsonify(json.load(f))
+            cached = json.load(f)
+
+        cached_articles = cached.get("Articles", [])
+        cached_errors = cached.get("errors", [])
+
+        if cached_articles:
+            return jsonify(cached)
+
+        if cached_errors:
+            return jsonify({"error": "Upstream news provider failed", "details": cached_errors}), 502
+
+        # Empty cache without provider errors is treated as stale and refetched below.
     response_news  = get_unified_news(query_news , query_edge)
     print("response_news")
+
+    articles = response_news.get("Articles", [])
+    errors = response_news.get("errors", [])
+
+    if not articles and errors:
+        return jsonify({"error": "Upstream news provider failed", "details": errors}), 502
+
     with open(file_path , "w") as f:
         json.dump(response_news , f , indent=4)
     return jsonify(response_news)

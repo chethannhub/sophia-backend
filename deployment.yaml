@@ -37,6 +37,11 @@ spec:
             secretKeyRef:
               name: app-secrets
               key: GOOGLE_CSE_ID
+        - name: NEWS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: NEWS_API_KEY
         volumeMounts:
         - name: google-cloud-key
           mountPath: /app/credentials

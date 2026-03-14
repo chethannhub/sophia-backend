@@ -4,6 +4,16 @@
       "chat_id": "0",
       "url_key": "1,2,3",
       "storage": "/Users/raja/Desktop/sophia/news-teller-b/db/2026-03-11-21-36"
+    },
+    {
+      "chat_id": "1",
+      "url_key": "20",
+      "storage": "E:\\sophia-backend\\db\\2026-03-14-10-58"
+    },
+    {
+      "chat_id": "3",
+      "url_key": "25",
+      "storage": "E:\\sophia-backend\\db\\2026-03-14-11-26"
     }
   ]
 }

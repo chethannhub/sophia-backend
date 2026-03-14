@@ -10,6 +10,8 @@ This guide will help you deploy your Flask News Teller application to Google Clo
 4. **GCP Project**: Active Google Cloud project with billing enabled
 5. **Service Account**: JSON key file for a service account with required permissions
 
+On Windows, run the provided `*.sh` scripts from Git Bash or WSL. If you prefer PowerShell, use the equivalent `gcloud`, `kubectl`, and `docker` commands directly.
+
 ## Required GCP APIs
 
 The setup script will automatically enable these APIs:
@@ -32,6 +34,7 @@ The setup script will automatically enable these APIs:
    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account.json"
    export GOOGLE_API_KEY="your-google-api-key"
    export GOOGLE_CSE_ID="your-cse-id"
+   export NEWS_API_KEY="your-newsapi-key"
    ```
 
 ## Deployment Steps

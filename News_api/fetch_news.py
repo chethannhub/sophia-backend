@@ -10,12 +10,24 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Apple
 
 def get_unified_news(query_news=None, query_edge=None):
     article_id = 0
-    final = {"Articles": []}
+    final = {"Articles": [], "errors": []}
 
     news_categories = ["AIML", "AR-VR", "Block Chain"]
     for category in news_categories:
         print(f"compiling {category}...")
         response_news = newsApi.get_news(category)
+
+        if response_news.get("status") == "error":
+            final["errors"].append(
+                {
+                    "provider": "newsapi",
+                    "category": category,
+                    "code": response_news.get("code", "upstream_error"),
+                    "message": response_news.get("message", "Unknown upstream error"),
+                }
+            )
+            continue
+
         for article in response_news.get("articles", []):
             # Prefer scraped full content; fall back to API-provided snippet
             scraped = fetch_full_content(article["url"])

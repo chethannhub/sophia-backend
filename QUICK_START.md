@@ -6,6 +6,8 @@
 - [ ] Active GCP project with billing enabled
 - [ ] Service account JSON key file downloaded
 
+On Windows, run the repo `*.sh` scripts from Git Bash or WSL.
+
 ## Environment Variables Setup 🔧
 
 Create a `.env` file or export these variables:
@@ -15,8 +17,11 @@ export GCP_PROJECT_ID="your-project-id"
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 export GOOGLE_API_KEY="your-google-api-key"
 export GOOGLE_CSE_ID="your-custom-search-engine-id"
+export NEWS_API_KEY="your-newsapi-key"
 export GCP_REGION="us-central1"  # Optional
 ```
+
+`NEWS_API_KEY` is required for `/get_daily_news` and can be created at `https://newsapi.org/account`.
 
 ## Three-Step Deployment 🎯
 

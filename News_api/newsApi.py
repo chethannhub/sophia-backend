@@ -40,5 +40,13 @@ def get_news(term):
         'pageSize=20&'
         f'apiKey={_API_KEY}')
 
-    responses = requests.get(url)
-    return responses.json()
+    try:
+        response = requests.get(url, timeout=12)
+        return response.json()
+    except requests.RequestException as exc:
+        return {
+            "status": "error",
+            "code": "request_failed",
+            "message": str(exc),
+            "articles": [],
+        }

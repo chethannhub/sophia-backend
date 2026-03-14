@@ -28,6 +28,11 @@ if [ -z "$GOOGLE_CSE_ID" ]; then
     exit 1
 fi
 
+if [ -z "$NEWS_API_KEY" ]; then
+    echo -e "${RED}Error: NEWS_API_KEY environment variable is not set${NC}"
+    exit 1
+fi
+
 if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
     echo -e "${RED}Error: GOOGLE_APPLICATION_CREDENTIALS environment variable is not set${NC}"
     echo "Please set it to the path of your service account JSON file"
@@ -45,6 +50,7 @@ kubectl create secret generic app-secrets \
   --from-literal=GCP_PROJECT_ID="$GCP_PROJECT_ID" \
   --from-literal=GOOGLE_API_KEY="$GOOGLE_API_KEY" \
   --from-literal=GOOGLE_CSE_ID="$GOOGLE_CSE_ID" \
+    --from-literal=NEWS_API_KEY="$NEWS_API_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Create Google Cloud service account secret

@@ -90,10 +90,15 @@ def generate_audio(article_ids: list, output_folder: str = None) -> str:
     output_dir = os.path.join(output_folder, unique_id)
     os.makedirs(output_dir, exist_ok=True)
 
-    speaker_engines = {
-        s["name"]: get_tts_engine(s["voice_lang"]) for s in PODCAST_SPEAKERS
-    }
+    # Create speaker engines: use voice_model if available, else fall back to voice_lang
+    speaker_engines = {}
+    for s in PODCAST_SPEAKERS:
+        voice_key = s.get("voice_model", s["voice_lang"])
+        speaker_engines[s["name"]] = get_tts_engine(voice_key)
+        print(f"[TTS] Loaded speaker '{s['name']}' with voice model: {voice_key}")
+    
     default_engine = get_tts_engine("en")
+    print(f"[TTS] Default engine loaded: en")
 
     audio_files = []
     for i, turn in enumerate(conversation_data["conversation"]):
@@ -103,22 +108,39 @@ def generate_audio(article_ids: list, output_folder: str = None) -> str:
 
         wav_path = os.path.join(output_dir, f"turn_{i:04d}.wav")
         mp3_path = os.path.join(output_dir, f"turn_{i:04d}.mp3")
+        
+        print(f"\n[TTS] Turn {i}: Speaker='{speaker}', Text length={len(text)} chars")
+        print(f"[TTS] Using engine voice language: {engine.lang}")
+        
         engine.synthesize_to_wav(text, wav_path)
         if not os.path.exists(wav_path) or os.path.getsize(wav_path) <= 44:
-            print(f"Warning: TTS produced empty/corrupt WAV for turn {i}, skipping.")
+            print(f"[TTS] ⚠️  WARNING: TTS produced empty/corrupt WAV for turn {i}, skipping.")
             if os.path.exists(wav_path):
                 os.remove(wav_path)
             continue
+        
+        wav_size = os.path.getsize(wav_path)
+        print(f"[TTS] ✓ WAV created: {wav_size} bytes")
+        
         _wav_to_mp3(wav_path, mp3_path)
+        mp3_size = os.path.getsize(mp3_path)
+        print(f"[TTS] ✓ MP3 created: {mp3_size} bytes")
+        
         audio_files.append(mp3_path)
 
     # Step 3: Merge all segments
+    print(f"\n[TTS] Merging {len(audio_files)} audio segments...")
     merged = _merge_audio_files(audio_files, output_dir)
+    merged_size = os.path.getsize(merged)
+    print(f"[TTS] ✓ Merged output: {merged} ({merged_size} bytes)")
+    
     _cleanup(audio_files)
+    print(f"[TTS] ✓ Cleaned up temporary files")
 
     # Step 4: Cache the result
     history["history"].append({"urls": article_ids, "path": merged})
     history_path.write_text(json.dumps(history, indent=2))
+    print(f"[TTS] ✓ Cached result in history.json")
 
     return merged
     with open(output_folder + "/history.json", "r") as file:

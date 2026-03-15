@@ -36,6 +36,8 @@ EMBEDDING_MODEL_NAME: str = "BAAI/bge-base-en-v1.5"
 PIPER_SAMPLE_RATE: int = 22050
 PIPER_VOICES: dict[str, str] = {
     "en": str(BASE_DIR / "piper" / "en_US-amy-medium.onnx"),
+    "en_US-amy-medium": str(BASE_DIR / "piper" / "en_US-amy-medium.onnx"),  # Female
+    "en_US-lessac-medium": str(BASE_DIR / "piper" / "en_US-lessac-medium.onnx"),  # Male
     "hi": str(BASE_DIR / "piper" / "hi_IN-priyamvada-medium.onnx"),
     "te": str(BASE_DIR / "piper" / "te_IN-maya-medium.onnx"),
 }
@@ -57,6 +59,7 @@ PODCAST_SPEAKERS: list[dict] = [
             "worked at Tesla, OpenAI, and currently at Google"
         ),
         "voice_lang": "en",
+        "voice_model": "en_US-lessac-medium",  # Male voice
     },
     {
         "name": "Smithi",
@@ -65,5 +68,6 @@ PODCAST_SPEAKERS: list[dict] = [
             "tech enthusiast who loves discussing the latest in AI and technology"
         ),
         "voice_lang": "en",
+        "voice_model": "en_US-amy-medium",  # Female voice
     },
 ]

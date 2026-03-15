@@ -10,6 +10,23 @@ _API_KEY = os.getenv("NEWS_API_KEY", "")
 yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
 def get_news(term):
+    """Fetch news articles for a given search term.
+    
+    Args:
+        term: Search term. Supported values: 'AIML', 'AR-VR', 'blockChain'
+        
+    Returns:
+        JSON response from NewsAPI or error dict
+    """
+    supported_terms = {"AIML", "AR-VR", "blockChain"}
+    if term not in supported_terms:
+        return {
+            "status": "error",
+            "code": "unsupported_term",
+            "message": f"Unknown news category '{term}'. Supported categories: {', '.join(sorted(supported_terms))}",
+            "articles": [],
+        }
+    
     if term == "AIML":
         term = "AI"
         url = ('https://newsapi.org/v2/everything?'
@@ -29,9 +46,8 @@ def get_news(term):
         'language=en&'
         'pageSize=20&'
         f'apiKey={_API_KEY}')
-    else:
+    else:  # blockChain
         date = (datetime.datetime.now() - datetime.timedelta(days=3)).strftime("%Y-%m-%d")
-        term = "blockChain"
         url = ('https://newsapi.org/v2/everything?'
         f'q={"+".join(term.split())}+("blockchain" OR "cryptocurrency" OR "bitcoin" OR "ethereum OR WEB3")&'
         f'from={date}&'

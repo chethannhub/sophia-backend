@@ -82,15 +82,33 @@ def get_daily_news():
 @app.route("/summarize" , methods = ["GET" , "POST"])
 def summarize():
     print("summarize")
+    
+    # Get urls parameter from request
     if request.method == "POST":
-        id = request.json.get("urls")
+        id = request.json.get("urls") if request.json else None
     else:
         id = request.args.get("urls")
-    id = id.split(',')
+    
+    # Validate urls parameter
+    if not id:
+        return jsonify({
+            "status": "error",
+            "code": "missing_urls",
+            "message": "Missing required parameter: 'urls'. Please provide comma-separated article IDs."
+        }), 400
+    
+    try:
+        id = id.split(',')
+        id = [int(i.strip()) for i in id]  # Convert to int and strip whitespace
+    except (ValueError, AttributeError) as e:
+        return jsonify({
+            "status": "error",
+            "code": "invalid_urls",
+            "message": "Invalid urls format. Expected comma-separated integers (e.g., '1,2,3')"
+        }), 400
+    
     print("urls = ",id)
     print(id)
-    for i in range(len(id)):
-        id[i] = int(id[i])
 
 
     if not id:

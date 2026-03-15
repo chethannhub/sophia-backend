@@ -12,20 +12,20 @@ def get_unified_news(query_news=None, query_edge=None):
     article_id = 0
     final = {"Articles": [], "errors": []}
 
-    news_categories = ["AIML", "AR-VR", "Block Chain"]
+    news_categories = ["AIML", "AR-VR", "blockChain"]  # Fixed: "Block Chain" -> "blockChain"
     for category in news_categories:
         print(f"compiling {category}...")
         response_news = newsApi.get_news(category)
 
         if response_news.get("status") == "error":
-            final["errors"].append(
-                {
-                    "provider": "newsapi",
-                    "category": category,
-                    "code": response_news.get("code", "upstream_error"),
-                    "message": response_news.get("message", "Unknown upstream error"),
-                }
-            )
+            error_obj = {
+                "provider": "newsapi",
+                "category": category,
+                "code": response_news.get("code", "upstream_error"),
+                "message": response_news.get("message", "Unknown upstream error"),
+            }
+            print(f"[Error] {category}: {error_obj}")
+            final["errors"].append(error_obj)
             continue
 
         for article in response_news.get("articles", []):
@@ -52,6 +52,13 @@ def get_unified_news(query_news=None, query_edge=None):
             }
             final["Articles"].append(temp)
             article_id += 1
+        
+        articles_count = len(response_news.get("articles", []))
+        total_available = response_news.get("totalResults", 0)
+        if articles_count == 0:
+            print(f"  {category}: 0 articles from API (totalResults: {total_available})")
+        else:
+            print(f"  {category}: {articles_count} articles from API")
 
     print(f"compiled — {article_id} articles total")
     return final

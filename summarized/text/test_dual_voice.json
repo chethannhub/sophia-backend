@@ -1,0 +1,27 @@
+{
+  "conversation": [
+    {
+      "speaker": "Andrew Krepthy",
+      "text": "Hello there! This is Andrew speaking with a male voice. Can you hear me clearly?"
+    },
+    {
+      "speaker": "Smithi",
+      "text": "Yes, I hear you perfectly! I'm Smithi, speaking with a female voice. Let's test the audio quality."
+    },
+    {
+      "speaker": "Andrew Krepthy",
+      "text": "Great! The voices should sound distinctly different now. This is the male voice again."
+    },
+    {
+      "speaker": "Smithi",
+      "text": "Exactly! And this is the female voice responding. The audio should clearly show both voices in the merged file."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Test Conversation",
+      "url": "test://local",
+      "date": "2026-03-15"
+    }
+  ]
+}

@@ -9,3 +9,4 @@ gen-lang-client-*.json
 .DS_Store
 **/ .DS_Store
 .venv/
+piper/*.onnx

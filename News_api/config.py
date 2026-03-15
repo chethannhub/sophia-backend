@@ -37,7 +37,7 @@ PIPER_SAMPLE_RATE: int = 22050
 PIPER_VOICES: dict[str, str] = {
     "en": str(BASE_DIR / "piper" / "en_US-amy-medium.onnx"),
     "en_US-amy-medium": str(BASE_DIR / "piper" / "en_US-amy-medium.onnx"),  # Female
-    "en_US-lessac-medium": str(BASE_DIR / "piper" / "en_US-lessac-medium.onnx"),  # Male
+    "en_US-hfc_male-medium": str(BASE_DIR / "piper" / "en_US-hfc_male-medium.onnx"),  # Male
     "hi": str(BASE_DIR / "piper" / "hi_IN-priyamvada-medium.onnx"),
     "te": str(BASE_DIR / "piper" / "te_IN-maya-medium.onnx"),
 }
@@ -59,10 +59,10 @@ PODCAST_SPEAKERS: list[dict] = [
             "worked at Tesla, OpenAI, and currently at Google"
         ),
         "voice_lang": "en",
-        "voice_model": "en_US-lessac-medium",  # Male voice
+        "voice_model": "en_US-hfc_male-medium",  # Male voice
     },
     {
-        "name": "Smithi",
+        "name": "Smitha",
         "description": (
             "Researcher at Google DeepMind; "
             "tech enthusiast who loves discussing the latest in AI and technology"

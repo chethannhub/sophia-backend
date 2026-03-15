@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-03-16-test",
+  "title": "Quick AI Chat Test",
+  "conversation": [
+    {
+      "speaker": "Andrew Krepthy",
+      "voice_model": "en_US-hfc_male-medium",
+      "text": "Hey Smitha, how's the AI landscape looking this week?"
+    },
+    {
+      "speaker": "Smitha",
+      "voice_model": "en_US-amy-medium",
+      "text": "Pretty exciting, Andrew! There are some breakthrough developments in multimodal models."
+    },
+    {
+      "speaker": "Andrew Krepthy",
+      "voice_model": "en_US-hfc_male-medium",
+      "text": "That's fantastic. What do you think the biggest impact will be?"
+    },
+    {
+      "speaker": "Smitha",
+      "voice_model": "en_US-amy-medium",
+      "text": "I believe we'll see unprecedented improvements in how machines understand context and nuance. It's truly transformative."
+    },
+    {
+      "speaker": "Andrew Krepthy",
+      "voice_model": "en_US-hfc_male-medium",
+      "text": "Excellent points. Thanks for the insights!"
+    }
+  ]
+}

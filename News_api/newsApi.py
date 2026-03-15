@@ -58,8 +58,17 @@ def get_news(term):
 
     try:
         response = requests.get(url, timeout=12)
-        return response.json()
+        data = response.json()
+        
+        # Log API response for debugging
+        if data.get("status") == "error":
+            print(f"[NewsAPI Error] Category: {term}, Code: {data.get('code')}, Message: {data.get('message')}")
+            if _API_KEY == "":
+                print("[WARNING] NEWS_API_KEY environment variable is not set!")
+        
+        return data
     except requests.RequestException as exc:
+        print(f"[Request Error] Category: {term}, Exception: {str(exc)}")
         return {
             "status": "error",
             "code": "request_failed",
